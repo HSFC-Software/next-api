@@ -35,18 +35,10 @@ export default async function handler(
 
 const selectQuery = `
 *,
-consolidator_id (
-  first_name,
-  last_name
-),
-disciple_id (
+disciples_id (
   id,
   first_name,
   last_name
-),
-lesson_code (
-  name,
-  code
 )
 `;
 
@@ -62,7 +54,7 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
   });
 
   const consolidation = await supabase
-    .from("consolidations") //
+    .from("consolidators") //
     .update(payload)
     .eq("id", req.query.id)
     .select(selectQuery)
@@ -73,7 +65,7 @@ async function update(req: NextApiRequest, res: NextApiResponse) {
 
 async function getById(req: NextApiRequest, res: NextApiResponse) {
   const { data } = await supabase
-    .from("consolidations")
+    .from("consolidators")
     .select(selectQuery)
     .filter("id", "eq", req.query.id)
     .single();
@@ -82,19 +74,39 @@ async function getById(req: NextApiRequest, res: NextApiResponse) {
 }
 
 async function get(req: NextApiRequest, res: NextApiResponse) {
+  // TODO: GET via q for auto completion
+
   if (req.query.id) {
     return getById(req, res);
   }
 
   const { data } = await supabase
-    .from("consolidations") //
+    .from("consolidators") //
     .select(selectQuery);
 
-  return res.status(200).json(data);
+  const response: any = await Promise.all(
+    data?.map(async (item) => {
+      const res = await supabase
+        .from("consolidators_lesson")
+        .select(`code`)
+        .eq("consolidators_id", item.id);
+
+      const consolidators_lesson = Array.from(
+        new Set(res.data?.map((conso) => conso.code))
+      ).sort();
+
+      return {
+        ...item,
+        consolidators_lesson,
+      };
+    }) as []
+  );
+
+  return res.status(200).json(response);
 }
 
 async function save(req: NextApiRequest, res: NextApiResponse) {
-  const fields = ["consolidator_id", "disciple_id", "lesson_code"];
+  const fields = ["disciples_id"];
 
   const payload: { [key: string]: string } = {};
 
@@ -104,9 +116,16 @@ async function save(req: NextApiRequest, res: NextApiResponse) {
     }
   });
 
-  const { error } = await supabase
-    .from("consolidations") //
-    .insert(payload as unknown);
+  const { error, data } = await supabase
+    .from("consolidators") //
+    .insert(payload as unknown)
+    .select()
+    .single();
+
+  await supabase.from("consolidators_lesson").insert({
+    code: "L1",
+    consolidators_id: data.id,
+  });
 
   if (error) {
     console.log(error);

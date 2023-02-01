@@ -2,6 +2,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextCors from "nextjs-cors";
+import moment from "moment";
 
 type Data = {
   name?: string;
@@ -18,10 +19,6 @@ export default async function handler(
     optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
   });
 
-  if (req.method === "POST") {
-    return save(req, res);
-  }
-
   if (req.method === "GET") {
     return get(req, res);
   }
@@ -30,46 +27,40 @@ export default async function handler(
 }
 
 async function get(req: NextApiRequest, res: NextApiResponse) {
-  // todo: handle q query from auto complete
+  const { error, data } = await supabase
+    .from("vips")
+    .select(
+      `*,
+      disciple_id(
+        *
+      )
+    `
+    )
+    .gt("created_at", moment().subtract("days", 7).utc().toISOString());
 
-  const { error, data } = await supabase.from("disciples").select("*");
+  const consolidationsQuery = await Promise.all(
+    data?.map(async (item) => {
+      const { data } = await supabase
+        .from("consolidations")
+        .select("disciple_id")
+        .eq("lesson_code", "L1")
+        .eq("disciple_id", item.disciple_id.id)
+        .single();
+      return data?.disciple_id;
+    }) as []
+  );
 
-  if (error) {
-    // ENHANCEMENTS: stuctured logging
-    return res.status(400).json({});
-  }
+  const consolidated: string[] = consolidationsQuery.filter((item) => !!item);
 
-  res.status(200).json(data);
-}
-
-async function save(req: NextApiRequest, res: NextApiResponse) {
-  const fields = ["first_name", "last_name", "middle_name", "is_vip"];
-
-  const payload: { [key: string]: string } = {};
-
-  fields.forEach((key) => {
-    if (!!req.body[key]) {
-      if (key === "is_vip") return;
-      payload[key] = req.body[key];
-    }
+  const response = data?.filter((item: any) => {
+    if (consolidated.includes(item.disciple_id?.id)) return false;
+    return true;
   });
 
-  const { error, data } = await supabase
-    .from("disciples") //
-    .insert(payload as unknown)
-    .select()
-    .single();
-
   if (error) {
     // ENHANCEMENTS: stuctured logging
     return res.status(400).json({});
   }
 
-  if (req.body.is_vip) {
-    await supabase.from("vips").insert({
-      disciple_id: data.id,
-    });
-  }
-
-  res.status(200).json(data);
+  res.status(200).json(response);
 }
