@@ -86,9 +86,18 @@ async function get(req: NextApiRequest, res: NextApiResponse) {
     return getById(req, res);
   }
 
-  const { data } = await supabase
-    .from("consolidations") //
-    .select(selectQuery);
+  // query by status
+  const query = supabase.from("consolidations").select(selectQuery);
+
+  if (req.query.lesson) {
+    const _lessons = Array.isArray(req.query.lesson)
+      ? req.query.lesson
+      : [req.query.lesson];
+
+    query.filter("lesson_code", "in", `(${_lessons.join(",")})`);
+  }
+
+  const { data } = await query;
 
   return res.status(200).json(data);
 }
