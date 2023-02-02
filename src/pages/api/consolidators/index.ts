@@ -122,10 +122,10 @@ async function save(req: NextApiRequest, res: NextApiResponse) {
     .select()
     .single();
 
-  await supabase.from("consolidators_lesson").insert({
-    code: "L1",
-    consolidators_id: data.id,
-  });
+  // await supabase.from("consolidators_lesson").insert({
+  //   code: "L1",
+  //   consolidators_id: data.id,
+  // });
 
   if (error) {
     console.log(error);
