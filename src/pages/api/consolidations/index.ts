@@ -1,5 +1,6 @@
 // Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import { supabase } from "@/lib/supabaseClient";
+import moment from "moment";
 import type { NextApiRequest, NextApiResponse } from "next";
 import NextCors from "nextjs-cors";
 
@@ -36,6 +37,7 @@ export default async function handler(
 const selectQuery = `
 *,
 consolidator_id (
+  id,
   first_name,
   last_name
 ),
@@ -86,18 +88,64 @@ async function get(req: NextApiRequest, res: NextApiResponse) {
     return getById(req, res);
   }
 
-  // query by status
   const query = supabase.from("consolidations").select(selectQuery);
+  const orQuery = [];
+  let sortBy = "created_at";
+  let order = req.query.order ?? "desc";
 
-  if (req.query.lesson) {
-    const _lessons = Array.isArray(req.query.lesson)
-      ? req.query.lesson
-      : [req.query.lesson];
+  if (req.query.sortBy) {
+    sortBy = req.query.sortBy[0];
 
-    query.filter("lesson_code", "in", `(${_lessons.join(",")})`);
+    if (Array.isArray(req.query.sortBy)) {
+      sortBy = req.query.sortBy[0];
+    } else {
+      sortBy = req.query.sortBy;
+    }
   }
 
-  const { data } = await query;
+  if (req.query.lesson) {
+    let lessons = [req.query.lesson];
+
+    if (Array.isArray(req.query.lesson)) {
+      lessons = req.query.lesson;
+    }
+
+    orQuery.push(`lesson_code.in.(${lessons.join(",")})`);
+  }
+
+  if (req.query.consolidator) {
+    let consolidators = [req.query.consolidator];
+
+    if (Array.isArray(req.query.consolidator)) {
+      consolidators = req.query.consolidator;
+    }
+
+    orQuery.push(`consolidator_id.in.(${consolidators.join(",")})`);
+  }
+
+  if (req.query.dateStart && req.query.dateEnd) {
+    const dateStart = `created_at.gte.${moment(req.query.dateStart)
+      .subtract("days", 1)
+      .utc()
+      .toISOString()}`;
+
+    const dateEnd = `created_at.lte.${moment(req.query.dateEnd)
+      .add("days", 1)
+      .utc()
+      .toISOString()}`;
+
+    orQuery.push(`and(${dateStart},${dateEnd})`);
+  }
+
+  if (orQuery.length > 0) query.or(orQuery.join(","));
+
+  query.order(sortBy, { ascending: order === "asc" });
+
+  const { data, error } = await query;
+
+  if (error) {
+    return res.status(404).json({});
+  }
 
   return res.status(200).json(data);
 }
