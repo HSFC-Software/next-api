@@ -25,7 +25,35 @@ export default async function handler(
     return patch(req, res);
   }
 
+  if (req.method === "GET") {
+    return getById(req, res);
+  }
+
   return res.status(404).json({});
+}
+
+async function getById(req: NextApiRequest, res: NextApiResponse) {
+  const { data, error } = await supabase
+    .from("networks")
+    .select(
+      `
+      *, 
+      discipler_id(
+        id,
+        first_name,
+        last_name
+      )
+    `
+    )
+    .filter("id", "eq", req.query.id)
+    .single();
+
+  if (error) {
+    res.status(404).json({});
+    return;
+  }
+
+  res.status(200).json(data ?? {});
 }
 
 async function patch(req: NextApiRequest, res: NextApiResponse) {
