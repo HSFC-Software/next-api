@@ -8,7 +8,10 @@ type Data = {
   name?: string;
 };
 
-const selectQuery = `*`;
+const selectQuery = `
+  *,
+  discipler_id (*) 
+`;
 
 export default async function handler(
   req: NextApiRequest,
@@ -82,7 +85,18 @@ async function get(req: NextApiRequest, res: NextApiResponse) {
     return res.status(404).json({});
   }
 
-  return res.status(200).json(data);
+  const response = await Promise.all(
+    data.map(async (item) => {
+      const res = await supabase
+        .from("network_disciples")
+        .select("*", { count: "exact", head: true })
+        .eq("network_id", item.id);
+
+      return { ...item, member_count: res.count };
+    })
+  );
+
+  return res.status(200).json(response);
 }
 
 async function save(req: NextApiRequest, res: NextApiResponse) {
@@ -96,14 +110,16 @@ async function save(req: NextApiRequest, res: NextApiResponse) {
     }
   });
 
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from("networks") //
-    .insert(payload as unknown);
+    .insert(payload as unknown)
+    .select(`*, discipler_id(*)`)
+    .single();
 
   if (error) {
     // ENHANCEMENTS: stuctured logging
     return res.status(400).json({});
   }
 
-  res.status(200).json({});
+  res.status(200).json(data);
 }
