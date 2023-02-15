@@ -75,6 +75,7 @@ async function patch(req: NextApiRequest, res: NextApiResponse) {
     .single();
 
   if (error) {
+    console.log(error);
     // ENHANCEMENTS: stuctured logging
     return res.status(400).json({});
   }

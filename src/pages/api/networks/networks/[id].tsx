@@ -31,7 +31,8 @@ export default async function handler(
         ) 
       `
       )
-      .eq("main_network_id", req.query.id);
+      .eq("main_network_id", req.query.id)
+      .order("created_at", { ascending: false });
 
     if (error) {
       // ENHANCEMENTS: stuctured logging

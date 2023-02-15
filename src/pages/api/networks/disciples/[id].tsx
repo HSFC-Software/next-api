@@ -24,7 +24,8 @@ export default async function handler(
           id,
           first_name,
           last_name
-        ) 
+        ),
+        created_at
       `
       )
       .eq("network_id", req.query.id);
